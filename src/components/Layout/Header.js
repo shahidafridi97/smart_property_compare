@@ -17,6 +17,13 @@ export default function Header() {
     router.push("/login");
   };
 
+  const navItems = [
+    { label: "Listings", href: "/listings" },
+    { label: "Compare", href: "/compare" },
+    { label: "Analysis", href: "/analysis" },
+    { label: "Reports", href: "/reports" },
+  ];
+
   return (
     <header className="w-full bg-white border-b border-brand-border sticky top-0 z-50">
 
@@ -24,7 +31,7 @@ export default function Header() {
 
         <div className="flex items-center justify-between">
 
-          {/* 🔥 LOGO (PI ICON — CLEAN) */}
+          {/* 🔥 LOGO */}
           <Link href="/" className="flex items-center gap-3">
 
             <div className="w-9 h-9 flex items-center justify-center border border-brand-border rounded-md text-sm font-primarybold text-brand-dark tracking-widest">
@@ -40,25 +47,32 @@ export default function Header() {
           {/* 🔥 NAV */}
           <nav className="hidden md:flex items-center gap-12 text-base font-primary text-brand-muted">
 
-            {[
-              "Listing",
-              "Compare",
-              "Analysis",
-              "Reports"
-            ].map((item) => (
-              <Link
-                key={item}
-                href="#"
-                className="relative group"
-              >
-                <span className="group-hover:text-brand-dark transition duration-300">
-                  {item}
-                </span>
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
 
-                {/* underline animation */}
-                <span className="absolute left-0 -bottom-2 w-0 h-[2px] bg-brand-dark transition-all duration-300 group-hover:w-full"></span>
-              </Link>
-            ))}
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="relative group"
+                >
+                  <span
+                    className={`transition duration-300 ${
+                      isActive ? "text-brand-dark font-primarymedium" : "group-hover:text-brand-dark"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+
+                  {/* underline */}
+                  <span
+                    className={`absolute left-0 -bottom-2 h-[2px] bg-brand-dark transition-all duration-300 ${
+                      isActive ? "w-full" : "w-0 group-hover:w-full"
+                    }`}
+                  ></span>
+                </Link>
+              );
+            })}
 
           </nav>
 
@@ -72,13 +86,13 @@ export default function Header() {
               Logout
             </button>
 
-            {/* 🔥 MENU ICON (proper) */}
-         <button
-  onClick={() => setMenuOpen(!menuOpen)}
-  className="md:hidden w-10 h-10 flex items-center justify-center border border-brand-border rounded-md"
->
-  <Icon name="menu" size={20} className="text-brand-dark" />
-</button>
+            {/* 🔥 MOBILE MENU */}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="md:hidden w-10 h-10 flex items-center justify-center border border-brand-border rounded-md"
+            >
+              <Icon name="menu" size={20} className="text-brand-dark" />
+            </button>
 
           </div>
 
@@ -88,10 +102,15 @@ export default function Header() {
         {menuOpen && (
           <div className="md:hidden mt-5 border-t border-brand-border pt-5 flex flex-col gap-5 text-base font-primary text-brand-dark">
 
-            <Link href="#" onClick={() => setMenuOpen(false)}>Listing</Link>
-            <Link href="#" onClick={() => setMenuOpen(false)}>Compare</Link>
-            <Link href="#" onClick={() => setMenuOpen(false)}>Analysis</Link>
-            <Link href="#" onClick={() => setMenuOpen(false)}>Reports</Link>
+            {navItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
 
             <button
               onClick={handleLogout}
