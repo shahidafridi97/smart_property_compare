@@ -21,7 +21,27 @@ export default {
       '5xl': '2000px',
       '6xl': '2560px',
     },
-   extend: {
+ extend: {
+  colors: {
+    brand: {
+      primary: "#334155",
+      dark: "#020617",
+      light: "#F1F5F9",
+      border: "#CBD5F5",
+      muted: "#64748B",
+    }
+  },
+
+  fontFamily: {
+    heading: ['BerlingskeSerif', 'serif'],
+    body: ['FigtreeMedium', 'sans-serif'],
+    primary: ['FigtreeMedium', 'sans-serif'],
+    primarylight: ['FigtreeLight', 'sans-serif'],
+    primarymedium: ['FigtreeMedium', 'sans-serif'],
+    primarybold: ['FigtreeBold', 'sans-serif'],
+    secondary: ['BerlingskeSerif', 'serif'],
+  },
+
   keyframes: {
     gradient: {
       "0%,100%": { backgroundPosition: "0% 50%" },
@@ -40,6 +60,7 @@ export default {
       "50%": { transform: "translateY(-30px)" },
     },
   },
+
   animation: {
     gradient: "gradient 10s ease infinite",
     gridMove: "gridMove 20s linear infinite",
