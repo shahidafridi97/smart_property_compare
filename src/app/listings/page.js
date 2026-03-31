@@ -1,417 +1,421 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import DataImporter from "@/components/DataImporter";
+import { Icon } from "@/components/icons";
+import PropertyGrid from "@/components/PropertyListing/PropertyGrid";
+import { useMemo, useState } from "react";
 
 export default function ListingPage() {
-  const [properties, setProperties] = useState([]);
-  const [jsonInput, setJsonInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("file");
-const [apiMethod, setApiMethod] = useState("GET");
-const [bearerToken, setBearerToken] = useState("");
-const [payload, setPayload] = useState("");
-  /* 🔥 UK REAL ESTATE MOCK DATA */
-  const mockData = [
+
+  const defaultData = [
     {
       id: 1,
-      title: "3 Bedroom Detached House",
-      location: "Croydon, London",
-      price: "£725,000",
-      status: "For Sale",
-      beds: 3,
-      type: "Detached",
-      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-    },
-    {
-      id: 2,
-      title: "2 Bedroom Apartment",
-      location: "Manchester City Centre",
-      price: "£320,000",
-      status: "Under Offer",
-      beds: 2,
-      type: "Apartment",
+      title: "1 Bedroom Flat to Rent",
+      location: "Mint Drive, Birmingham",
+      price: "£950",
+      beds: 1,
+      bathroom: 1,
+      type: "Flat",
       image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
-    },
-    {
-      id: 3,
-      title: "4 Bedroom Family Home",
-      location: "Birmingham",
-      price: "£540,000",
-      status: "For Sale",
-      beds: 4,
-      type: "Semi-Detached",
-      image: "https://images.unsplash.com/photo-1570129477492-45c003edd2be",
     },
   ];
 
-  useEffect(() => {
-    setProperties(mockData);
-  }, []);
+  const [properties, setProperties] = useState(defaultData);
+  const [openModal, setOpenModal] = useState(false);
+  const [openFilter, setOpenFilter] = useState(false);
 
-  /* 🔥 UNIVERSAL NORMALIZER (FIXED) */
-  const normalizeData = (data) => {
-    if (!data) return [];
+  const [draftFilters, setDraftFilters] = useState({});
+  const [filters, setFilters] = useState({});
 
-    // 1️⃣ Direct array
-    if (Array.isArray(data)) return data;
+  /* =========================================
+     🔥 FLATTEN (ROBUST)
+  ========================================= */
 
-    // 2️⃣ Common keys (important for your case)
-    const keys = ["hits", "data", "properties", "results", "items", "list"];
+  const flattenObject = (obj, prefix = "", res = {}) => {
+    if (!obj) return res;
 
+    Object.entries(obj).forEach(([key, value]) => {
+      const newKey = prefix ? `${prefix}.${key}` : key;
+
+      if (Array.isArray(value)) {
+        value.forEach((item, i) => {
+          if (typeof item === "object" && item !== null) {
+            flattenObject(item, `${newKey}.${i}`, res);
+          } else {
+            res[`${newKey}.${i}`] = item;
+          }
+        });
+      } else if (typeof value === "object" && value !== null) {
+        flattenObject(value, newKey, res);
+      } else {
+        res[newKey] = value;
+      }
+    });
+
+    return res;
+  };
+
+  /* =========================================
+     🔥 UNIVERSAL PICK
+  ========================================= */
+
+  const pick = (obj, keys) => {
     for (const key of keys) {
-      if (Array.isArray(data[key])) {
-        return data[key];
+      if (obj?.[key] !== undefined && obj?.[key] !== null && obj?.[key] !== "") {
+        return obj[key];
       }
     }
+    return null;
+  };
 
-    // 3️⃣ Deep search (handles ANY API structure)
-    const findArray = (obj) => {
-      if (!obj || typeof obj !== "object") return null;
+  /* =========================================
+     🔥 UNIVERSAL NORMALIZE
+  ========================================= */
 
-      for (const key in obj) {
-        if (Array.isArray(obj[key]) && obj[key].length > 0) {
-          return obj[key];
-        }
+  const normalizeProperty = (item, index) => {
+    const flat = flattenObject(item);
 
-        if (typeof obj[key] === "object") {
-          const result = findArray(obj[key]);
-          if (result) return result;
-        }
-      }
+    const values = Object.values(flat);
 
-      return null;
+    const title =
+      pick(item, ["title", "name", "display_address", "property_name"]) ||
+      values.find(v => typeof v === "string" && v.length > 10);
+
+    const location =
+      pick(item, ["location", "area", "address", "display_address"]) ||
+      values.find(v => typeof v === "string" && v.length > 15);
+
+    const beds =
+      pick(item, ["beds", "bedroom", "bedrooms"]) ??
+      values.find(v => String(v).match(/^\d$/) && v <= 10);
+
+    const bathroom =
+      pick(item, ["bathroom", "bath", "bathrooms"]) ??
+      "-";
+
+    const type =
+      pick(item, ["type", "property_type", "category"]) ||
+      "-";
+
+    const image =
+      pick(item, ["image", "thumbnail", "img"]) ||
+      values.find(v => typeof v === "string" && v.includes("http")) ||
+      "/no-image.jpg";
+
+    const priceRaw =
+      pick(item, ["price", "price_value", "amount", "rent", "price_pcm"]);
+
+    let price = "N/A";
+    if (priceRaw) {
+      const numeric = String(priceRaw).replace(/[^0-9.]/g, "");
+      if (numeric) price = `£${Number(numeric).toLocaleString()}`;
+    }
+
+    return {
+      id: item.id || item._id || item.objectID || index,
+      title: title || "Property",
+      location: typeof location === "object" ? JSON.stringify(location) : location || "UK",
+      price,
+      beds: beds ?? "-",
+      bathroom,
+      type,
+      image,
+      raw: item,
     };
+  };
 
-    const deep = findArray(data);
-    if (deep) return deep;
+  /* =========================================
+     🔥 ARRAY EXTRACTOR (STRONG)
+  ========================================= */
+
+  const extractArray = (data) => {
+    if (!data) return [];
+
+    if (Array.isArray(data)) return data;
+
+    const queue = [data];
+
+    while (queue.length) {
+      const current = queue.shift();
+
+      if (Array.isArray(current) && current.length) return current;
+
+      if (typeof current === "object") {
+        Object.values(current).forEach(v => queue.push(v));
+      }
+    }
 
     return [];
   };
 
-  /* 🔥 SAFE MAPPER (VERY IMPORTANT) */
-  const mapProperties = (list) => {
-    return list.map((item, index) => ({
-      id: item.id || item.objectID || index,
-      title:
-        item.title ||
-        item.display_address ||
-        item.name ||
-        "Property",
-      location:
-        item.location ||
-        item.area ||
-        item.address?.address2 ||
-        "UK",
-      price:
-        item.price
-          ? `£${Number(item.price).toLocaleString()}`
-          : item.price || "N/A",
-      status: item.status || "Available",
-      beds: item.bedroom || item.beds || "-",
-      type:
-        item.type ||
-        item.building?.[0] ||
-        item.property_type ||
-        "-",
-      image:
-        item.image ||
-        item.thumbnail ||
-        item.images?.[0]?.["526x360"] ||
-        item.images?.[0]?.["451x320"] ||
-        "https://via.placeholder.com/400",
-    }));
+  const handleApiResponse = (data) => {
+    const list = extractArray(data);
+    const normalized = list.map((item, i) => normalizeProperty(item, i));
+    setProperties(normalized);
   };
 
-  /* 🔥 FILE UPLOAD */
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  /* =========================================
+     🔥 FILTER ENGINE (FIXED CLEAN)
+  ========================================= */
 
-    const reader = new FileReader();
+ /* =========================================
+   🔥 FILTER ENGINE (FINAL CLEAN)
+========================================= */
 
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result);
-        const normalized = normalizeData(parsed);
+/* =========================================
+   🔥 FILTER ENGINE (FINAL CLEAN)
+========================================= */
 
-        if (!normalized.length) {
-          alert("No valid property data found");
-          return;
-        }
+const dynamicAttributes = useMemo(() => {
+  const map = {};
 
-        setProperties(mapProperties(normalized));
-      } catch {
-        alert("Invalid JSON file");
-      }
-    };
+  const ignoreKeys = [
+    "id",
+    "image",
+    "title",
+    "price",
+    "location",
+    "raw",
+    "address",
+    "address1",
+    "address2",
+    "address3",
+    "address4",
+  ];
 
-    reader.readAsText(file);
+  const normalizeKey = (key) => {
+    const k = key.toLowerCase();
+
+    if (k.includes("bed")) return "beds";
+    if (k.includes("bath")) return "bath";
+    if (k.includes("type") || k.includes("property")) return "type";
+
+    return key.split(".").pop();
   };
 
-  /* 🔥 PASTE JSON */
-  const handlePaste = () => {
-    try {
-      const parsed = JSON.parse(jsonInput);
-      const normalized = normalizeData(parsed);
+  const isValid = (val) => {
+    if (val === null || val === undefined) return false;
+    if (val === "") return false;
+    if (val === "-") return false;
+    if (val === "0") return false;
+    if (val === 0) return false;
 
-      if (!normalized.length) {
-        alert("No valid property data found");
-        return;
-      }
+    if (typeof val === "boolean") return false;
 
-      setProperties(mapProperties(normalized));
-    } catch {
-      alert("Invalid JSON input");
+    if (typeof val === "string") {
+      if (val.length > 40) return false;
+      if (val.includes("{") || val.includes("}")) return false;
+      if (val.includes("http")) return false;
     }
+
+    return true;
   };
 
-  /* 🔥 FETCH FROM URL */
-  const handleFetch = async () => {
-  try {
-    setLoading(true);
+  properties.forEach((item) => {
+    const flat = flattenObject(item.raw || {});
 
-    const options = {
-      method: apiMethod,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    };
+    Object.entries(flat).forEach(([key, val]) => {
+      if (!isValid(val)) return;
 
-    // 🔥 ADD BEARER TOKEN
-    if (bearerToken) {
-      options.headers["Authorization"] = `Bearer ${bearerToken}`;
+      const clean = normalizeKey(key);
+
+      if (ignoreKeys.includes(clean)) return;
+
+      if (!map[clean]) map[clean] = new Set();
+
+      map[clean].add(val);
+    });
+  });
+
+  const result = {};
+
+  Object.entries(map).forEach(([k, set]) => {
+    const values = [...set];
+
+    /* ✅ remove single useless filters */
+    if (values.length > 1 && values.length <= 8) {
+      result[k] = values;
     }
+  });
 
-    // 🔥 ADD BODY FOR POST
-    if (apiMethod === "POST" && payload) {
-      try {
-        options.body = JSON.stringify(JSON.parse(payload));
-      } catch {
-        alert("Invalid JSON payload");
-        setLoading(false);
-        return;
-      }
-    }
+  return result;
+}, [properties]);
 
-    const res = await fetch(jsonInput, options);
-    const data = await res.json();
+  /* =========================================
+     🔥 PRICE FILTER
+  ========================================= */
 
-    const normalized = normalizeData(data);
+  const getNumericPrice = (price) =>
+    Number(String(price).replace(/[^0-9]/g, ""));
 
-    if (!normalized.length) {
-      alert("No valid property data found");
-      return;
-    }
+  const priceOptions = useMemo(() => {
+    return [...new Set(properties.map((p) => getNumericPrice(p.price)))].sort(
+      (a, b) => a - b
+    );
+  }, [properties]);
 
-    setProperties(mapProperties(normalized));
-  } catch (err) {
-    console.error(err);
-    alert("Invalid API / Network error");
-  } finally {
-    setLoading(false);
-  }
-};
-console.log("properties",properties);
+  /* =========================================
+     🔥 APPLY FILTER
+  ========================================= */
+
+  const applyFilters = () => setFilters(draftFilters);
+
+  const resetFilters = () => {
+    setDraftFilters({});
+    setFilters({});
+  };
+
+  const filteredProperties = useMemo(() => {
+    return properties.filter((item) => {
+      const flat = flattenObject(item.raw || {});
+      const price = getNumericPrice(item.price);
+
+      return Object.entries(filters).every(([key, val]) => {
+        if (!val) return true;
+
+        if (key === "minPrice") return price >= Number(val);
+        if (key === "maxPrice") return price <= Number(val);
+
+        return Object.values(flat).some(v => String(v) === String(val));
+      });
+    });
+  }, [properties, filters]);
+
+  /* =========================================
+     🔥 UI (UNCHANGED)
+  ========================================= */
+
   return (
-    <div className="min-h-screen container-padding py-12 space-y-14">
+    <div className="min-h-screen container-padding py-12 space-y-10">
 
-      {/* 🔥 HERO HEADER */}
-      <div className="max-w-3xl space-y-4 animate-fadeUp">
-        <h1 className="text-3xl md:text-5xl font-secondary text-brand-dark leading-tight">
-          Discover, Compare & Analyse UK Properties
+      <div className="max-w-3xl space-y-4">
+        <h1 className="text-3xl md:text-5xl font-secondary text-brand-dark">
+          Explore Properties
         </h1>
-        <p className="text-brand-muted text-sm md:text-lg font-primary leading-relaxed">
-          Import your property datasets, explore listings visually, compare
-          prices, and generate powerful insights to make smarter investment decisions.
-        </p>
-      </div>
 
-      {/* 🔥 DATA SOURCE CARD */}
-      <div className="bg-white border border-brand-border rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setOpenModal(true)}
+            className="px-6 py-3 bg-brand-dark text-white rounded-lg"
+          >
+            Import Data
+          </button>
 
-        <h2 className="text-xl font-secondary text-brand-dark">
-          Import Your Property Data
-        </h2>
-
-        {/* 🔥 TABS */}
-        <div className="flex gap-3 flex-wrap">
-          {[
-            { key: "file", label: "Upload JSON File" },
-            { key: "json", label: "Paste Raw JSON" },
-            { key: "url", label: "Fetch via API URL" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setMode(tab.key)}
-              className={`px-5 py-2 rounded-full text-sm font-primarymedium transition-all duration-300
-              ${
-                mode === tab.key
-                  ? "bg-brand-dark text-white shadow"
-                  : "border border-brand-border text-brand-muted hover:bg-brand-light"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <button
+            onClick={() => setOpenFilter(true)}
+            className="px-6 py-3 border rounded-lg"
+          >
+            Filters
+          </button>
         </div>
-
-        {/* 🔥 FILE */}
-        {mode === "file" && (
-          <div className="space-y-3 animate-fadeUp">
-            <p className="text-sm text-brand-muted">
-              Upload a JSON file containing property listings.
-            </p>
-
-            <input
-              type="file"
-              accept="application/json"
-              onChange={handleFileUpload}
-              className="w-full border border-brand-border rounded-md p-3"
-            />
-          </div>
-        )}
-
-        {/* 🔥 JSON */}
-        {mode === "json" && (
-          <div className="space-y-4 animate-fadeUp">
-
-            <p className="text-sm text-brand-muted">
-              Example format:
-            </p>
-
-            <div className="bg-brand-light text-xs p-3 rounded-md overflow-auto">
-{`{
-  "hits": [
-    {
-      "title": "2 Bedroom Flat",
-      "price": 450000,
-      "area": "London",
-      "status": "For Sale"
-    }
-  ]
-}`}
-            </div>
-
-            <textarea
-              placeholder="Paste your JSON here..."
-              value={jsonInput}
-              onChange={(e) => setJsonInput(e.target.value)}
-              className="w-full h-40 border border-brand-border rounded-md p-3 text-sm"
-            />
-
-            <button
-              onClick={handlePaste}
-              className="px-5 py-2 bg-brand-dark text-white rounded-md hover:scale-[1.03] transition"
-            >
-              Parse JSON
-            </button>
-
-          </div>
-        )}
-
-        {/* 🔥 URL */}
-      {mode === "url" && (
-  <div className="space-y-4 animate-fadeUp">
-
-    <p className="text-sm text-brand-muted">
-      Fetch property data via API
-    </p>
-
-    {/* 🔥 METHOD */}
-    <div className="flex gap-3">
-      <select
-        value={apiMethod}
-        onChange={(e) => setApiMethod(e.target.value)}
-        className="border border-brand-border rounded-md px-3 py-2 text-sm"
-      >
-        <option value="GET">GET</option>
-        <option value="POST">POST</option>
-      </select>
-
-      <input
-        type="text"
-        placeholder="Bearer Token (optional)"
-        value={bearerToken}
-        onChange={(e) => setBearerToken(e.target.value)}
-        className="flex-1 border border-brand-border rounded-md px-3 py-2 text-sm"
-      />
-    </div>
-
-    {/* 🔥 URL */}
-    <input
-      type="text"
-      placeholder="https://api.example.com/properties"
-      value={jsonInput}
-      onChange={(e) => setJsonInput(e.target.value)}
-      className="w-full border border-brand-border rounded-md p-3 text-sm"
+      </div>
+{openFilter && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center">
+    <div
+      className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+      onClick={() => setOpenFilter(false)}
     />
 
-    {/* 🔥 PAYLOAD (ONLY POST) */}
-    {apiMethod === "POST" && (
-      <textarea
-        placeholder={`{
-  "location": "London",
-  "min_price": 300000
-}`}
-        value={payload}
-        onChange={(e) => setPayload(e.target.value)}
-        className="w-full h-32 border border-brand-border rounded-md p-3 text-sm"
-      />
-    )}
+    <div className="relative bg-white w-full max-w-2xl mx-4 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
 
-    {/* 🔥 BUTTON */}
-    <button
-      onClick={handleFetch}
-      className="px-5 py-2 bg-brand-dark text-white rounded-md hover:scale-[1.03] transition"
-    >
-      {loading ? "Fetching..." : "Fetch Data"}
-    </button>
+      {/* HEADER */}
+      <div className="flex justify-between items-center px-6 py-4 border-b">
+        <h2 className="text-lg font-semibold">Filters</h2>
+        <button onClick={() => setOpenFilter(false)}>✕</button>
+      </div>
 
-  </div>
-)}
+      {/* BODY */}
+      <div className="overflow-y-auto px-6 py-5">
+
+        <div className="grid grid-cols-2 gap-6">
+
+          {Object.keys(dynamicAttributes).map((attr) => {
+
+            const iconMap = {
+              beds: "bed",
+              bath: "bath",
+              type: "home",
+              status: "status",
+            };
+
+            return (
+              <div key={attr}>
+
+                {/* TITLE + ICON */}
+                <div className="flex items-center gap-2 mb-3 text-sm font-medium text-gray-700">
+                  <Icon name={iconMap[attr] || "tag"} size={16} />
+                  <span className="capitalize">
+                    {attr.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                {/* OPTIONS */}
+                <div className="flex flex-wrap gap-2">
+                  {dynamicAttributes[attr].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setDraftFilters({
+                          ...draftFilters,
+                          [attr]: draftFilters[attr] === val ? "" : val,
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-full text-sm transition
+                      ${
+                        draftFilters[attr] === val
+                          ? "bg-black text-white"
+                          : "bg-gray-100 hover:bg-gray-200"
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+
+              </div>
+            );
+          })}
+
+        </div>
 
       </div>
 
-      {/* 🔥 GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* FOOTER */}
+      <div className="flex gap-3 p-4 border-t">
+        <button
+          onClick={() => {
+            applyFilters();
+            setOpenFilter(false);
+          }}
+          className="flex-1 bg-black text-white py-2.5 rounded-lg"
+        >
+          Apply
+        </button>
 
-        {properties.map((item) => (
-          <div
-            key={item.id}
-            className="border border-brand-border rounded-xl overflow-hidden bg-white"
-          >
+        <button
+          onClick={resetFilters}
+          className="flex-1 border py-2.5 rounded-lg"
+        >
+          Reset
+        </button>
+      </div>
 
-            <div className="h-48 bg-gray-100">
-              <img
-                src={item.image}
-                alt={item.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            <div className="p-4 space-y-2">
-
-              <h3 className="text-lg font-secondary text-brand-dark">
-                {item.title}
-              </h3>
-
-              <p className="text-sm text-brand-muted">
-                {item.location}
-              </p>
-
-              <p className="text-sm font-primarymedium">
-                {item.price}
-              </p>
-
-              <span className="text-xs px-2 py-1 rounded bg-gray-100">
-                {item.status}
-              </span>
-
-            </div>
-
+    </div>
+  </div>
+)}
+      {openModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpenModal(false)} />
+          <div className="relative bg-white p-6 rounded-xl w-[600px]">
+            <DataImporter setProperties={handleApiResponse} />
           </div>
-        ))}
+        </div>
+      )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+        {filteredProperties.map((item) => (
+          <PropertyGrid key={item.id} item={item} />
+        ))}
       </div>
 
     </div>
