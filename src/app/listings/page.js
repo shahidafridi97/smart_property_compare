@@ -1,5 +1,5 @@
 "use client";
-
+import { useEffect } from "react";
 import DataImporter from "@/components/DataImporter";
 import { Icon } from "@/components/icons";
 import PropertyGrid from "@/components/PropertyListing/PropertyGrid";
@@ -26,7 +26,19 @@ export default function ListingPage() {
 
   const [draftFilters, setDraftFilters] = useState({});
   const [filters, setFilters] = useState({});
+useEffect(() => {
+  const stored = localStorage.getItem("propertiesData");
 
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+
+      if (parsed?.data?.length) {
+        setProperties(parsed.data);
+      }
+    } catch {}
+  }
+}, []);
   /* =========================================
      🔥 FLATTEN (ROBUST)
   ========================================= */
@@ -148,11 +160,21 @@ export default function ListingPage() {
     return [];
   };
 
-  const handleApiResponse = (data) => {
-    const list = extractArray(data);
-    const normalized = list.map((item, i) => normalizeProperty(item, i));
-    setProperties(normalized);
-  };
+ const handleApiResponse = (data, source = "api") => {
+  const list = extractArray(data);
+  const normalized = list.map((item, i) => normalizeProperty(item, i));
+
+  setProperties(normalized);
+
+  /* 🔥 STORE IN LOCALSTORAGE */
+  localStorage.setItem(
+    "propertiesData",
+    JSON.stringify({
+      source,
+      data: normalized,
+    })
+  );
+};
 
   /* =========================================
      🔥 FILTER ENGINE (FIXED CLEAN)

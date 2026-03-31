@@ -229,7 +229,17 @@ export default function DataImporter({ setProperties }) {
           return;
         }
 
-        setProperties(mapProperties(normalized));
+   const mapped = mapProperties(normalized);
+
+setProperties(mapped);
+
+localStorage.setItem(
+  "propertiesData",
+  JSON.stringify({
+    source: "file",
+    data: mapped,
+  })
+);
       } catch {
         alert("Invalid JSON file");
       }
@@ -249,7 +259,17 @@ export default function DataImporter({ setProperties }) {
         return;
       }
 
-      setProperties(mapProperties(normalized));
+      const mapped = mapProperties(normalized);
+
+setProperties(mapped);
+
+localStorage.setItem(
+  "propertiesData",
+  JSON.stringify({
+    source: "json",
+    data: mapped,
+  })
+);
     } catch {
       alert("Invalid JSON input");
     }
@@ -291,7 +311,17 @@ export default function DataImporter({ setProperties }) {
         return;
       }
 
-      setProperties(mapProperties(normalized));
+      const mapped = mapProperties(normalized);
+
+setProperties(mapped);
+
+localStorage.setItem(
+  "propertiesData",
+  JSON.stringify({
+    source: "api",
+    data: mapped,
+  })
+);
     } catch (err) {
       console.error(err);
       alert("Invalid API / Network error");

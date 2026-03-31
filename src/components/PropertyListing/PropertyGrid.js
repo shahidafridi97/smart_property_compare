@@ -1,4 +1,5 @@
 import { Icon } from "../icons";
+import { useEffect, useState } from "react";
 
 /* FLATTEN */
 const flattenObject = (obj, prefix = "", res = {}) => {
@@ -39,6 +40,18 @@ const pick = (flat, keywords) => {
   return null;
 };
 
+/* 🔥 UNIQUE CRM ID */
+const getUniqueId = (item) => {
+  return (
+    item?.crm_id ||
+    item?.property_id ||
+    item?.id ||
+    item?.objectID ||
+    item?.raw?.crm_id ||
+    item?.raw?.id
+  );
+};
+
 /* CLEAN VALUE */
 const isValidValue = (val) => {
   if (val === null || val === undefined) return false;
@@ -53,86 +66,82 @@ const isValidValue = (val) => {
   return true;
 };
 
-/* 🔥 LOCATION FIX (FINAL) */
+/* LOCATION FIX */
 const parseLocation = (loc, flat) => {
   if (!loc) return pick(flat, ["address", "location", "area"]) || "UK";
 
-  if (typeof loc === "string" && !loc.includes("{")) {
-    return loc;
-  }
+  if (typeof loc === "string" && !loc.includes("{")) return loc;
 
-  if (typeof loc === "string" && loc.includes("{")) {
+  if (typeof loc === "string") {
     try {
       const parsed = JSON.parse(loc);
-      return (
-        parsed.inline ||
-        parsed.address ||
-        parsed.display_address ||
-        parsed.address1 ||
-        parsed.address2 ||
-        parsed.address3 ||
-        parsed.address4 ||
-        "UK"
-      );
+      return parsed.inline || parsed.address || "UK";
     } catch {
       return "UK";
     }
   }
 
   if (typeof loc === "object") {
-    return (
-      loc.inline ||
-      loc.address ||
-      loc.display_address ||
-      loc.address1 ||
-      loc.address2 ||
-      loc.address3 ||
-      loc.address4 ||
-      "UK"
-    );
+    return loc.inline || loc.address || "UK";
   }
 
   return "UK";
 };
 
 export default function PropertyGrid({ item }) {
-
   const flat = flattenObject(item.raw || {});
-
+const [isLimitReached, setIsLimitReached] = useState(false);
   /* MAIN ATTRIBUTES */
-
-  const beds =
-    item.beds ??
-    pick(flat, ["bed"]) ??
-    "-";
-
-  const bath =
-    item.bathroom ??
-    item.bath ??
-    pick(flat, ["bath"]) ??
-    "-";
-
-  const type =
-    item.type ??
-    pick(flat, ["type", "property"]) ??
-    "-";
-
+  const beds = item.beds ?? pick(flat, ["bed"]) ?? "-";
+  const bath = item.bathroom ?? item.bath ?? pick(flat, ["bath"]) ?? "-";
+  const type = item.type ?? pick(flat, ["type", "property"]) ?? "-";
   const location = parseLocation(item.location, flat);
 
-  /* EXTRA ATTRIBUTES */
+  /* COMPARE LOGIC */
+  const [isCompared, setIsCompared] = useState(false);
 
+ useEffect(() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem("compareList") || []);
+    const uniqueId = getUniqueId(item);
+
+    if (!uniqueId) return;
+
+    setIsCompared(stored.includes(uniqueId));
+    setIsLimitReached(stored.length >= 3);
+  } catch {
+    setIsCompared(false);
+  }
+}, [item]);
+
+const handleCompare = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem("compareList") || "[]");
+
+    const uniqueId = getUniqueId(item);
+
+    if (!uniqueId) return;
+
+    if (stored.includes(uniqueId)) return;
+
+  if (stored.length >= 3) {
+  return; // silently block
+}
+
+    const updated = [...stored, uniqueId];
+
+    localStorage.setItem("compareList", JSON.stringify(updated));
+
+    setIsCompared(true);
+  } catch (err) {
+    console.error("Compare error", err);
+  }
+};
+
+  /* EXTRA ATTRIBUTES */
   const ignore = [
-    "id",
-    "image",
-    "title",
-    "price",
-    "location",
-    "raw",
-    "beds",
-    "bedroom",
-    "bathroom",
-    "bath",
-    "type",
+    "id","image","title","price","location","raw",
+    "beds","bedroom","bathroom","bath","type"
   ];
 
   const cleanKey = (key) => key.split(".").pop();
@@ -155,11 +164,8 @@ export default function PropertyGrid({ item }) {
     })
     .reduce((acc, [key, val]) => {
       const shortKey = cleanKey(key);
-
       if (!acc[shortKey]) acc[shortKey] = new Set();
-
       acc[shortKey].add(val);
-
       return acc;
     }, {});
 
@@ -186,37 +192,33 @@ export default function PropertyGrid({ item }) {
       {/* CONTENT */}
       <div className="p-5 space-y-4">
 
-        {/* TITLE */}
-        <h3 className="text-lg font-semibold text-gray-900 leading-tight">
+        <h3 className="text-lg font-semibold text-gray-900">
           {item.title}
         </h3>
 
-        {/* LOCATION */}
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Icon name="location" size={16} />
           {location}
         </div>
 
-        {/* MAIN ATTRIBUTES */}
         <div className="grid grid-cols-3 gap-4 text-sm text-gray-800">
 
           <div className="flex items-center gap-2">
             <Icon name="bed" size={16} />
-            <span>{beds}</span>
+            {beds}
           </div>
 
           <div className="flex items-center gap-2">
             <Icon name="bath" size={16} />
-            <span>{bath}</span>
+            {bath}
           </div>
 
-          <div className="text-gray-600 text-right">
+          <div className="text-right text-gray-600">
             {type}
           </div>
 
         </div>
 
-        {/* EXTRA ATTRIBUTES */}
         {finalAttributes.length > 0 && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 border-t pt-3">
             {finalAttributes.map(([key, vals]) => (
@@ -228,17 +230,28 @@ export default function PropertyGrid({ item }) {
         )}
 
         {/* ACTIONS */}
-        <div className="flex items-center justify-between pt-3 border-t">
+        <div className="flex justify-between pt-3 border-t">
 
-          <button className="flex items-center gap-2 text-sm font-medium text-black hover:opacity-70">
+          <button className="flex items-center gap-2 text-sm font-medium text-black">
             View Details
             <Icon name="arrow" size={16} />
           </button>
 
-          <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-black">
-            <Icon name="compare" size={16} />
-            Compare
-          </button>
+      <button
+  onClick={handleCompare}
+  disabled={isCompared || isLimitReached}
+  className={`flex items-center gap-2 text-sm transition
+    ${
+      isCompared
+        ? "text-gray-300 cursor-not-allowed"
+        : isLimitReached
+        ? "text-gray-300 cursor-not-allowed"
+        : "text-gray-500 hover:text-black"
+    }`}
+>
+  <Icon name="compare" size={16} />
+  {isCompared ? "Added" : isLimitReached ? "Limit Reached" : "Compare"}
+</button>
 
         </div>
 
@@ -251,7 +264,5 @@ export default function PropertyGrid({ item }) {
 const formatLabel = (key) =>
   key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
-const formatValue = (val) => {
-  if (Array.isArray(val)) return val.join(", ");
-  return val;
-};
+const formatValue = (val) =>
+  Array.isArray(val) ? val.join(", ") : val;
