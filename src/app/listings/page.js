@@ -8,17 +8,137 @@ import { useMemo, useState } from "react";
 export default function ListingPage() {
 
   const defaultData = [
-    {
-      id: 1,
-      title: "1 Bedroom Flat to Rent",
-      location: "Mint Drive, Birmingham",
-      price: "£950",
-      beds: 1,
-      bathroom: 1,
-      type: "Flat",
-      image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
-    },
-  ];
+  {
+    id: 1,
+    title: "1 Bedroom Flat to Rent",
+    location: "Mint Drive, Birmingham",
+    price: "£950",
+    beds: 1,
+    bathroom: 1,
+    type: "Flat",
+    tenure: "Leasehold",
+    council_tax: "Band A",
+    area: "452 sqft",
+    image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
+  },
+  {
+    id: 2,
+    title: "2 Bedroom Apartment",
+    location: "Manchester City Centre",
+    price: "£1,350",
+    beds: 2,
+    bathroom: 2,
+    type: "Apartment",
+    tenure: "Leasehold",
+    council_tax: "Band B",
+    area: "710 sqft",
+    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688",
+  },
+  {
+    id: 3,
+    title: "3 Bedroom Semi-Detached House",
+    location: "Croydon, London",
+    price: "£2,200",
+    beds: 3,
+    bathroom: 2,
+    type: "Semi-Detached",
+    tenure: "Freehold",
+    council_tax: "Band D",
+    area: "1,120 sqft",
+    image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
+  },
+  {
+    id: 4,
+    title: "Studio Flat",
+    location: "Camden, London",
+    price: "£1,100",
+    beds: 0,
+    bathroom: 1,
+    type: "Studio",
+    tenure: "Leasehold",
+    council_tax: "Band B",
+    area: "350 sqft",
+    image: "https://images.unsplash.com/photo-1493809842364-78817add7ffb",
+  },
+  {
+    id: 5,
+    title: "4 Bedroom Detached House",
+    location: "Leeds, West Yorkshire",
+    price: "£2,800",
+    beds: 4,
+    bathroom: 3,
+    type: "Detached",
+    tenure: "Freehold",
+    council_tax: "Band E",
+    area: "1,850 sqft",
+    image: "https://images.unsplash.com/photo-1570129477492-45c003edd2be",
+  },
+  {
+    id: 6,
+    title: "2 Bedroom Terraced House",
+    location: "Liverpool",
+    price: "£1,050",
+    beds: 2,
+    bathroom: 1,
+    type: "Terraced",
+    tenure: "Freehold",
+    council_tax: "Band A",
+    area: "820 sqft",
+    image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994",
+  },
+  {
+    id: 7,
+    title: "Luxury 3 Bedroom Penthouse",
+    location: "Canary Wharf, London",
+    price: "£4,500",
+    beds: 3,
+    bathroom: 3,
+    type: "Penthouse",
+    tenure: "Leasehold",
+    council_tax: "Band G",
+    area: "1,600 sqft",
+    image: "https://images.unsplash.com/photo-1505691938895-1758d7feb511",
+  },
+  {
+    id: 8,
+    title: "1 Bedroom Cottage",
+    location: "Oxford",
+    price: "£1,200",
+    beds: 1,
+    bathroom: 1,
+    type: "Cottage",
+    tenure: "Freehold",
+    council_tax: "Band C",
+    area: "600 sqft",
+    image: "https://images.unsplash.com/photo-1507089947368-19c1da9775ae",
+  },
+  {
+    id: 9,
+    title: "5 Bedroom Villa",
+    location: "Richmond, London",
+    price: "£6,500",
+    beds: 5,
+    bathroom: 4,
+    type: "Villa",
+    tenure: "Freehold",
+    council_tax: "Band H",
+    area: "2,500 sqft",
+    image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c",
+  },
+  {
+    id: 10,
+    title: "2 Bedroom Flat",
+    location: "Bristol",
+    price: "£1,250",
+    beds: 2,
+    bathroom: 1,
+    type: "Flat",
+    tenure: "Leasehold",
+    council_tax: "Band B",
+    area: "680 sqft",
+    image: "https://images.unsplash.com/photo-1484154218962-a197022b5858",
+  },
+];
 
   const [properties, setProperties] = useState(defaultData);
   const [openModal, setOpenModal] = useState(false);
@@ -35,9 +155,25 @@ useEffect(() => {
 
       if (parsed?.data?.length) {
         setProperties(parsed.data);
+        return;
       }
     } catch {}
   }
+
+  // ✅ IF NO DATA → STORE DEFAULT DATA (IMPORTANT FIX)
+  const normalized = defaultData.map((item, i) =>
+    normalizeProperty(item, i)
+  );
+
+  setProperties(normalized);
+
+  localStorage.setItem(
+    "propertiesData",
+    JSON.stringify({
+      source: "default",
+      data: normalized,
+    })
+  );
 }, []);
   /* =========================================
      🔥 FLATTEN (ROBUST)
@@ -310,27 +446,74 @@ const dynamicAttributes = useMemo(() => {
   return (
     <div className="min-h-screen container-padding py-12 space-y-10">
 
-      <div className="max-w-3xl space-y-4">
-        <h1 className="text-3xl md:text-5xl font-secondary text-brand-dark">
-          Explore Properties
-        </h1>
+      <div className="space-y-5">
 
-        <div className="flex gap-3">
-          <button
-            onClick={() => setOpenModal(true)}
-            className="px-6 py-3 bg-brand-dark text-white rounded-lg"
-          >
-            Import Data
-          </button>
+  {/* 🔥 TOP BAR */}
+  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
 
-          <button
-            onClick={() => setOpenFilter(true)}
-            className="px-6 py-3 border rounded-lg"
-          >
-            Filters
-          </button>
-        </div>
-      </div>
+    {/* LEFT → TITLE + META */}
+    <div className="space-y-1">
+      <h1 className="text-3xl md:text-4xl font-secondary text-brand-dark tracking-tight">
+        Explore Property Intelligence
+      </h1>
+{typeof window !== "undefined" &&
+  localStorage.getItem("propertiesData") &&
+  JSON.parse(localStorage.getItem("propertiesData"))?.source === "default" && (
+    <div className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 px-3 py-1 rounded-full inline-block">
+      Showing mock data — import real data
+    </div>
+)}
+      <p className="text-sm text-gray-500">
+        {filteredProperties.length} properties analysed • real-time data insights
+      </p>
+    </div>
+
+    {/* RIGHT → ACTION BUTTONS */}
+    <div className="flex items-center gap-3">
+
+      <button
+        onClick={() => setOpenModal(true)}
+        className="px-5 py-2.5 rounded-xl 
+        bg-brand-dark text-white text-sm font-medium
+        shadow-[0_8px_20px_rgba(0,0,0,0.12)]
+        hover:scale-[1.02] active:scale-[0.97]
+        transition-all duration-200"
+      >
+        Import Data
+      </button>
+
+      <button
+        onClick={() => setOpenFilter(true)}
+        className="px-5 py-2.5 rounded-xl 
+        border border-gray-300 text-gray-700 text-sm font-medium
+        hover:bg-gray-50
+        transition-all duration-200"
+      >
+        Filter & Refine
+      </button>
+
+    </div>
+
+  </div>
+
+  {/* 🔥 SMART INFO STRIP */}
+  <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
+
+    <span className="px-3 py-1.5 bg-gray-100 rounded-full text-gray-600">
+      AI-driven comparison
+    </span>
+
+    <span className="px-3 py-1.5 bg-gray-100 rounded-full text-gray-600">
+      Cleaned & normalized data
+    </span>
+
+    <span className="px-3 py-1.5 bg-gray-100 rounded-full text-gray-600">
+      Dynamic attribute filtering
+    </span>
+
+  </div>
+
+</div>
 {openFilter && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center">
     <div

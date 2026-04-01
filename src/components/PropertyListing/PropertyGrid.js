@@ -40,7 +40,7 @@ const pick = (flat, keywords) => {
   return null;
 };
 
-/* 🔥 UNIQUE CRM ID */
+/* UNIQUE ID */
 const getUniqueId = (item) => {
   return (
     item?.crm_id ||
@@ -66,7 +66,7 @@ const isValidValue = (val) => {
   return true;
 };
 
-/* LOCATION FIX */
+/* LOCATION */
 const parseLocation = (loc, flat) => {
   if (!loc) return pick(flat, ["address", "location", "area"]) || "UK";
 
@@ -90,53 +90,85 @@ const parseLocation = (loc, flat) => {
 
 export default function PropertyGrid({ item }) {
   const flat = flattenObject(item.raw || {});
-const [isLimitReached, setIsLimitReached] = useState(false);
-  /* MAIN ATTRIBUTES */
+
+  const MAX_COMPARE = 3;
+const [compareCount, setCompareCount] = useState(0);
+  const [isLimitReached, setIsLimitReached] = useState(false);
+  const [isCompared, setIsCompared] = useState(false);
+  const [showLimitMsg, setShowLimitMsg] = useState(false);
+
+  /* MAIN */
   const beds = item.beds ?? pick(flat, ["bed"]) ?? "-";
   const bath = item.bathroom ?? item.bath ?? pick(flat, ["bath"]) ?? "-";
   const type = item.type ?? pick(flat, ["type", "property"]) ?? "-";
   const location = parseLocation(item.location, flat);
 
-  /* COMPARE LOGIC */
-  const [isCompared, setIsCompared] = useState(false);
-
- useEffect(() => {
+  /* SYNC STATE */
+const syncCompareState = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem("compareList") || []);
+    const stored = JSON.parse(localStorage.getItem("compareList") || "[]");
     const uniqueId = getUniqueId(item);
 
     if (!uniqueId) return;
 
     setIsCompared(stored.includes(uniqueId));
-    setIsLimitReached(stored.length >= 3);
+    setIsLimitReached(stored.length >= MAX_COMPARE);
+
+    /* 🔥 ADD THIS */
+    setCompareCount(stored.length);
+
   } catch {
     setIsCompared(false);
-  }
-}, [item]);
-
-const handleCompare = () => {
-  try {
-    const stored = JSON.parse(localStorage.getItem("compareList") || "[]");
-
-    const uniqueId = getUniqueId(item);
-
-    if (!uniqueId) return;
-
-    if (stored.includes(uniqueId)) return;
-
-  if (stored.length >= 3) {
-  return; // silently block
-}
-
-    const updated = [...stored, uniqueId];
-
-    localStorage.setItem("compareList", JSON.stringify(updated));
-
-    setIsCompared(true);
-  } catch (err) {
-    console.error("Compare error", err);
+    setIsLimitReached(false);
+    setCompareCount(0);
   }
 };
+
+  useEffect(() => {
+    syncCompareState();
+
+    window.addEventListener("storage", syncCompareState);
+    return () => window.removeEventListener("storage", syncCompareState);
+  }, [item]);
+const clearAllCompare = () => {
+  localStorage.removeItem("compareList");
+
+  syncCompareState();
+  window.dispatchEvent(new Event("storage"));
+};
+  /* HANDLE COMPARE */
+  const handleCompare = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("compareList") || "[]");
+      const uniqueId = getUniqueId(item);
+
+      if (!uniqueId) return;
+
+      let updated = [];
+
+      if (stored.includes(uniqueId)) {
+        /* REMOVE */
+        updated = stored.filter(id => id !== uniqueId);
+      } else {
+        if (stored.length >= MAX_COMPARE) {
+          /* SHOW MESSAGE */
+          setShowLimitMsg(true);
+          setTimeout(() => setShowLimitMsg(false), 2000);
+          return;
+        }
+
+        updated = [...stored, uniqueId];
+      }
+
+      localStorage.setItem("compareList", JSON.stringify(updated));
+
+      syncCompareState();
+      window.dispatchEvent(new Event("storage"));
+
+    } catch (err) {
+      console.error("Compare error", err);
+    }
+  };
 
   /* EXTRA ATTRIBUTES */
   const ignore = [
@@ -175,8 +207,7 @@ const handleCompare = () => {
     .slice(0, 4);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 hover:shadow-lg transition duration-300">
-
+<div className="relative bg-white rounded-xl border border-gray-100 hover:shadow-lg transition duration-300">  
       {/* IMAGE */}
       <div className="relative h-56 overflow-hidden rounded-t-xl">
         <img
@@ -237,23 +268,44 @@ const handleCompare = () => {
             <Icon name="arrow" size={16} />
           </button>
 
-      <button
-  onClick={handleCompare}
-  disabled={isCompared || isLimitReached}
-  className={`flex items-center gap-2 text-sm transition
-    ${
-      isCompared
-        ? "text-gray-300 cursor-not-allowed"
-        : isLimitReached
-        ? "text-gray-300 cursor-not-allowed"
-        : "text-gray-500 hover:text-black"
-    }`}
->
-  <Icon name="compare" size={16} />
-  {isCompared ? "Added" : isLimitReached ? "Limit Reached" : "Compare"}
-</button>
+          <button
+            onClick={handleCompare}
+            className={`flex items-center gap-2 text-sm transition
+              ${
+                isCompared
+                  ? "text-red-500"
+                  : isLimitReached
+                  ? "text-gray-300"
+                  : "text-gray-500 hover:text-black"
+              }`}
+          >
+<Icon name={isCompared ? "trash" : "compare"} size={16} />            {isCompared
+              ? ""
+              : isLimitReached
+              ? "Limit Reached (Max 4)"
+              : "Compare"}
+          </button>
 
         </div>
+        {compareCount > 0 && (
+    <div className="absolute bottom-1 right-3 z-20">
+      <button
+        onClick={clearAllCompare}
+        className="px-3 py-1 text-xs rounded-md 
+        bg-red-50 text-red-600 border border-red-200 
+        hover:bg-red-100"
+      >
+        Clear ({compareCount})
+      </button>
+    </div>
+  )}
+
+        {/* MESSAGE */}
+        {showLimitMsg && (
+          <div className="text-xs text-red-500 mt-1">
+            You can compare only {compareCount} properties at a time
+          </div>
+        )}
 
       </div>
     </div>

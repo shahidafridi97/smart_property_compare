@@ -30,6 +30,16 @@ export const BedIcon = (props) => (
   </Svg>
 );
 
+export const TrashIcon = (props) => (
+  <Svg {...props}>
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M6 6l1 14h10l1-14" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+  </Svg>
+);
+
 export const BathIcon = (props) => (
   <Svg {...props}>
     <path d="M3 12h18" />
@@ -101,6 +111,7 @@ const icons = {
   arrow: ArrowIcon,
    home: HomeIcon,
   status: StatusIcon,
+  trash: TrashIcon,
   tag: TagIcon,
 };
 

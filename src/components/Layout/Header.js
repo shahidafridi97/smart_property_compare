@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { Icon } from "../icons";
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+const [compareCount, setCompareCount] = useState(0);
 
-  if (pathname === "/login") return null;
+  
 
   const handleLogout = () => {
     localStorage.removeItem("isLoggedIn");
@@ -23,7 +24,21 @@ export default function Header() {
     { label: "Analysis", href: "/analysis" },
     { label: "Reports", href: "/reports" },
   ];
+useEffect(() => {
+  const update = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("compareList") || "[]");
+      setCompareCount(stored.length);
+    } catch {
+      setCompareCount(0);
+    }
+  };
 
+  update();
+  window.addEventListener("storage", update);
+  return () => window.removeEventListener("storage", update);
+}, []);
+if (pathname === "/login") return null;
   return (
     <header className="w-full bg-white border-b border-brand-border sticky top-0 z-50">
 
@@ -51,26 +66,42 @@ export default function Header() {
               const isActive = pathname === item.href;
 
               return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="relative group"
-                >
-                  <span
-                    className={`transition duration-300 ${
-                      isActive ? "text-brand-dark font-primarymedium" : "group-hover:text-brand-dark"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
+              <Link
+  key={item.label}
+  href={item.href}
+  className="relative group flex items-center gap-2"
+>
+  <span
+    className={`transition-all duration-300 flex items-center gap-2 ${
+      isActive
+        ? "text-brand-dark font-primarymedium"
+        : "text-gray-500 group-hover:text-brand-dark"
+    }`}
+  >
+    {item.label}
 
-                  {/* underline */}
-                  <span
-                    className={`absolute left-0 -bottom-2 h-[2px] bg-brand-dark transition-all duration-300 ${
-                      isActive ? "w-full" : "w-0 group-hover:w-full"
-                    }`}
-                  ></span>
-                </Link>
+    {item.label === "Compare" && compareCount > 0 && (
+      <span
+        className={`text-[11px] leading-none px-2 py-[4px]
+        rounded-md font-primarymedium
+        transition-all duration-300
+        ${
+          isActive
+            ? "bg-brand-dark text-white"
+            : "bg-gray-100 text-gray-600 group-hover:bg-brand-dark group-hover:text-white"
+        }`}
+      >
+        {compareCount}
+      </span>
+    )}
+  </span>
+
+  <span
+    className={`absolute left-0 -bottom-2 h-[2px] bg-brand-dark transition-all duration-300 ${
+      isActive ? "w-full" : "w-0 group-hover:w-full"
+    }`}
+  />
+</Link>
               );
             })}
 
